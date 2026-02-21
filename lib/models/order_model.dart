@@ -163,12 +163,17 @@ class ShippingAddress {
     return ShippingAddress(
       firstName: map['firstName'] ?? '',
       lastName: map['lastName'] ?? '',
-      street: map['streetAddress'] ?? map['street'] ?? '',
+      street: map['address'] ?? map['streetAddress'] ?? map['street'] ?? '',
       landmark: map['landmark'] ?? '',
       city: map['city'] ?? '',
       state: map['state'] ?? '',
-      pincode: map['pincode']?.toString() ?? '',
-      phone: map['mobileNumber']?.toString() ?? map['phone']?.toString() ?? '',
+      pincode:
+          map['postalCode']?.toString() ?? map['pincode']?.toString() ?? '',
+      phone:
+          map['mobileNumber']?.toString() ??
+          map['phoneNumber']?.toString() ??
+          map['phone']?.toString() ??
+          '',
     );
   }
 
@@ -177,11 +182,11 @@ class ShippingAddress {
     return {
       'firstName': firstName,
       'lastName': lastName,
-      'streetAddress': street,
+      'address': street,
       'landmark': landmark,
       'city': city,
       'state': state,
-      'pincode': pincode,
+      'postalCode': pincode,
       'mobileNumber': phone,
     };
   }

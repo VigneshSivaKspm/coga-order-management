@@ -51,6 +51,16 @@ class OrderItem {
   final bool isCombo;
   final String id;
   final String uniqueKey;
+  // Bundle-specific fields
+  final String? bundleId;
+  final bool isBundleItem;
+  final String? bundlePrice;
+  final String? bundleName;
+  final String? originalIndividualPrice;
+  final Map<String, String>?
+  bundleProductSizes; // Maps productId -> size for bundle items
+  final List<Map<String, dynamic>>?
+  bundleProducts; // List of products in the bundle with details
 
   const OrderItem({
     required this.productId,
@@ -63,6 +73,13 @@ class OrderItem {
     this.isCombo = false,
     required this.id,
     required this.uniqueKey,
+    this.bundleId,
+    this.isBundleItem = false,
+    this.bundlePrice,
+    this.bundleName,
+    this.originalIndividualPrice,
+    this.bundleProductSizes,
+    this.bundleProducts,
   });
 
   /// Creates OrderItem from a Map (Firestore document)
@@ -95,6 +112,21 @@ class OrderItem {
           map['uniqueKey'] ??
           map['id'] ??
           DateTime.now().millisecondsSinceEpoch.toString(),
+      bundleId: map['bundleId'],
+      isBundleItem: map['isBundleItem'] ?? false,
+      bundlePrice: map['bundlePrice']?.toString(),
+      bundleName: map['bundleName'],
+      originalIndividualPrice: map['originalIndividualPrice']?.toString(),
+      bundleProductSizes: map['bundleProductSizes'] != null
+          ? Map<String, String>.from(map['bundleProductSizes'])
+          : null,
+      bundleProducts: map['bundleProducts'] != null
+          ? List<Map<String, dynamic>>.from(
+              (map['bundleProducts'] as List).map(
+                (item) => Map<String, dynamic>.from(item),
+              ),
+            )
+          : null,
     );
   }
 
@@ -111,6 +143,13 @@ class OrderItem {
       'isCombo': isCombo,
       'id': id,
       'uniqueKey': uniqueKey,
+      'bundleId': bundleId,
+      'isBundleItem': isBundleItem,
+      'bundlePrice': bundlePrice,
+      'bundleName': bundleName,
+      'originalIndividualPrice': originalIndividualPrice,
+      'bundleProductSizes': bundleProductSizes,
+      'bundleProducts': bundleProducts,
     };
   }
 
@@ -135,6 +174,13 @@ class OrderItem {
     bool? isCombo,
     String? id,
     String? uniqueKey,
+    String? bundleId,
+    bool? isBundleItem,
+    String? bundlePrice,
+    String? bundleName,
+    String? originalIndividualPrice,
+    Map<String, String>? bundleProductSizes,
+    List<Map<String, dynamic>>? bundleProducts,
   }) {
     return OrderItem(
       productId: productId ?? this.productId,
@@ -147,12 +193,103 @@ class OrderItem {
       isCombo: isCombo ?? this.isCombo,
       id: id ?? this.id,
       uniqueKey: uniqueKey ?? this.uniqueKey,
+      bundleId: bundleId ?? this.bundleId,
+      isBundleItem: isBundleItem ?? this.isBundleItem,
+      bundlePrice: bundlePrice ?? this.bundlePrice,
+      bundleName: bundleName ?? this.bundleName,
+      originalIndividualPrice:
+          originalIndividualPrice ?? this.originalIndividualPrice,
+      bundleProductSizes: bundleProductSizes ?? this.bundleProductSizes,
+      bundleProducts: bundleProducts ?? this.bundleProducts,
     );
+  }
+
+  /// Gets the numeric bundle price value
+  double get bundlePriceValue {
+    if (bundlePrice == null) return 0.0;
+    final cleanPrice = bundlePrice!.replaceAll(RegExp(r'[^\d.]'), '');
+    return double.tryParse(cleanPrice) ?? 0.0;
+  }
+
+  /// Gets the numeric original individual price value
+  double get originalIndividualPriceValue {
+    if (originalIndividualPrice == null) return 0.0;
+    final cleanPrice = originalIndividualPrice!.replaceAll(
+      RegExp(r'[^\d.]'),
+      '',
+    );
+    return double.tryParse(cleanPrice) ?? 0.0;
+  }
+
+  /// Gets the savings from bundle discount
+  double get bundleSavings =>
+      (originalIndividualPriceValue - bundlePriceValue) * quantity;
+
+  /// Gets the size for a specific product in the bundle
+  /// Returns the size if found, or empty string if not available
+  String getProductSizeInBundle(String productId) {
+    if (bundleProductSizes == null) return '';
+    return bundleProductSizes![productId] ?? '';
+  }
+
+  /// Gets all product sizes in the bundle
+  /// Returns a map of productId -> size
+  Map<String, String> getAllBundleProductSizes() {
+    return bundleProductSizes ?? {};
+  }
+
+  /// Gets a formatted string of all bundle product sizes
+  /// Format: "Product1: XL, Product2: M"
+  String formatBundleProductSizes() {
+    if (bundleProductSizes == null || bundleProductSizes!.isEmpty) {
+      return '';
+    }
+    return bundleProductSizes!.entries
+        .map((e) => '${e.key}: ${e.value}')
+        .join(', ');
+  }
+
+  /// Gets all products in the bundle
+  /// Returns list of product maps with productId, title, quantity, price, image, size
+  List<Map<String, dynamic>> getBundleProducts() {
+    return bundleProducts ?? [];
+  }
+
+  /// Gets the count of products in the bundle
+  int getBundleProductCount() {
+    return bundleProducts?.length ?? 0;
+  }
+
+  /// Gets a product from the bundle by productId
+  Map<String, dynamic>? getBundleProduct(String productId) {
+    if (bundleProducts == null) return null;
+    try {
+      return bundleProducts!.firstWhere(
+        (product) => product['productId'] == productId,
+      );
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /// Gets formatted bundle products list for display
+  /// Format: "Product1 (XL), Product2 (M), Product3 (L)"
+  String formatBundleProductsList() {
+    if (bundleProducts == null || bundleProducts!.isEmpty) {
+      return '';
+    }
+    return bundleProducts!
+        .map((p) {
+          final title = p['title'] ?? p['productId'] ?? 'Unknown';
+          final size = p['size'] ?? bundleProductSizes?[p['productId']] ?? '';
+          return size.isNotEmpty ? '$title ($size)' : title;
+        })
+        .join(', ');
   }
 
   @override
   String toString() {
-    return 'OrderItem(productId: $productId, title: $title, quantity: $quantity, price: $price)';
+    return 'OrderItem(productId: $productId, title: $title, quantity: $quantity, price: $price, isBundleItem: $isBundleItem, bundleName: $bundleName)';
   }
 
   @override

@@ -1,3 +1,5 @@
+// ignore_for_file: prefer_const_constructors
+
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/order_item_model.dart';
@@ -100,14 +102,264 @@ class OrderItemsList extends StatelessWidget {
   }
 }
 
-class _OrderItemRow extends StatelessWidget {
+class _OrderItemRow extends StatefulWidget {
   final OrderItem item;
   final int index;
 
   const _OrderItemRow({required this.item, required this.index});
 
   @override
+  State<_OrderItemRow> createState() => _OrderItemRowState();
+}
+
+class _OrderItemRowState extends State<_OrderItemRow> {
+  bool _isExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    // If it's a bundle item, show bundle with expandable products
+    if (widget.item.isBundleItem) {
+      return _buildBundleItemView();
+    }
+
+    // Regular item view
+    return _buildRegularItemView();
+  }
+
+  Widget _buildBundleItemView() {
+    final bundleProducts = widget.item.getBundleProducts();
+    final bundleSizes = widget.item.getAllBundleProductSizes();
+
+    return Column(
+      children: [
+        // Bundle Header (Clickable to expand)
+        GestureDetector(
+          onTap: () => setState(() => _isExpanded = !_isExpanded),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Bundle Icon
+                Container(
+                  width: 70,
+                  height: 70,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5E9),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: const Color(0xFF4CAF50),
+                      width: 2,
+                    ),
+                  ),
+                  child: const Icon(
+                    Icons.card_giftcard,
+                    color: Color(0xFF4CAF50),
+                    size: 30,
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Bundle Details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Bundle Name
+                      Text(
+                        widget.item.bundleName ?? widget.item.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF2E7D32),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Bundle Badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFE8F5E9),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: const Color(0xFF4CAF50)),
+                        ),
+                        child: Text(
+                          '📦 Bundle (${bundleProducts.length} items)',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2E7D32),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Price and Quantity
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            '${CurrencyFormatter.formatString(widget.item.bundlePrice ?? '0')} × ${widget.item.quantity}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: kTextSecondary,
+                            ),
+                          ),
+                          Text(
+                            CurrencyFormatter.format(
+                              double.tryParse(widget.item.bundlePrice ?? '0') ??
+                                  0.0 * widget.item.quantity,
+                            ),
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: kTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Expand/Collapse Icon
+                Icon(
+                  _isExpanded
+                      ? Icons.keyboard_arrow_up
+                      : Icons.keyboard_arrow_down,
+                  color: kTextSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // Expanded Products List
+        if (_isExpanded && bundleProducts.isNotEmpty) ...[
+          Container(
+            decoration: const BoxDecoration(
+              border: Border(top: BorderSide(color: kBorderColor)),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFFAFAFA),
+              border: Border(top: BorderSide(color: kBorderColor)),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(
+                    'Products in Bundle:',
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: kTextPrimary,
+                    ),
+                  ),
+                ),
+                ...bundleProducts.asMap().entries.map((entry) {
+                  final product = entry.value;
+                  final productId = product['productId'] as String? ?? '';
+                  final size = bundleSizes[productId] ?? '';
+                  final title = product['title'] ?? 'Unknown Product';
+                  final price = product['price'] ?? '0';
+                  final productQuantity = product['quantity'] ?? 1;
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: kBorderColor),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Product Image
+                          if (product['image'] != null &&
+                              (product['image'] as String).isNotEmpty)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: CachedNetworkImage(
+                                imageUrl: product['image']!,
+                                width: 50,
+                                height: 50,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    _buildImagePlaceholder,
+                                errorWidget: (context, url, error) =>
+                                    _buildImagePlaceholder,
+                              ),
+                            )
+                          else
+                            _buildImagePlaceholder,
+                          const SizedBox(width: 10),
+
+                          // Product Details
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  title,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: kTextPrimary,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    if (size.isNotEmpty) ...[
+                                      _buildProductTag('Size: $size'),
+                                      const SizedBox(width: 6),
+                                    ],
+                                    _buildProductTag('Qty: $productQuantity'),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+
+                          // Product Price
+                          Text(
+                            CurrencyFormatter.formatString(price),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: kTextPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildRegularItemView() {
     return Padding(
       padding: const EdgeInsets.all(16),
       child: Row(
@@ -116,9 +368,9 @@ class _OrderItemRow extends StatelessWidget {
           // Image
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: item.image != null && item.image!.isNotEmpty
+            child: widget.item.image != null && widget.item.image!.isNotEmpty
                 ? CachedNetworkImage(
-                    imageUrl: item.image!,
+                    imageUrl: widget.item.image!,
                     width: 70,
                     height: 70,
                     fit: BoxFit.cover,
@@ -159,7 +411,7 @@ class _OrderItemRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.title,
+                  widget.item.title,
                   style: const TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
@@ -173,11 +425,14 @@ class _OrderItemRow extends StatelessWidget {
                 // Size and Color
                 Row(
                   children: [
-                    if (item.size != null && item.size!.isNotEmpty) ...[
-                      _buildTag('Size: ${item.size}'),
+                    if (widget.item.size != null &&
+                        widget.item.size!.isNotEmpty) ...[
+                      _buildTag('Size: ${widget.item.size}'),
                       const SizedBox(width: 8),
                     ],
-                    if (item.color != null) ...[_buildColorTag(item.color!)],
+                    if (widget.item.color != null) ...[
+                      _buildColorTag(widget.item.color!),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -187,14 +442,14 @@ class _OrderItemRow extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      '${CurrencyFormatter.formatString(item.price)} × ${item.quantity}',
+                      '${CurrencyFormatter.formatString(widget.item.price)} × ${widget.item.quantity}',
                       style: const TextStyle(
                         fontSize: 13,
                         color: kTextSecondary,
                       ),
                     ),
                     Text(
-                      CurrencyFormatter.format(item.totalPrice),
+                      CurrencyFormatter.format(widget.item.totalPrice),
                       style: const TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -207,6 +462,34 @@ class _OrderItemRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget get _buildImagePlaceholder {
+    return Container(
+      width: 50,
+      height: 50,
+      color: kSurfaceColor,
+      child: const Icon(Icons.image_outlined, color: kTextTertiary, size: 20),
+    );
+  }
+
+  Widget _buildProductTag(String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(3),
+        border: Border.all(color: const Color(0xFF4CAF50), width: 0.5),
+      ),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+          color: Color(0xFF2E7D32),
+        ),
       ),
     );
   }
